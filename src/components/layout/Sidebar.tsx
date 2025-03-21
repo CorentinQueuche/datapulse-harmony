@@ -21,7 +21,10 @@ interface SidebarProps {
   toggleMenu?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isMenuOpen = false, toggleMenu = () => {} }) => {
+const Sidebar: React.FC<SidebarProps> = ({ 
+  isMenuOpen = false, 
+  toggleMenu = () => {} 
+}) => {
   const { user, signOut } = useAuth();
   const location = useLocation();
   const isMobile = useIsMobile();

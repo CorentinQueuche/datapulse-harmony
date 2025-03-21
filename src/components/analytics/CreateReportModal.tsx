@@ -1,478 +1,336 @@
 import React, { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { useQuery } from '@tanstack/react-query';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription,
-  DialogFooter
-} from '@/components/ui/dialog';
+import * as z from 'zod';
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import { Check, ChevronsUpDown, Calendar } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
-import { cn } from '@/lib/utils';
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
+import { toast } from "@/components/ui/use-toast"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
-
-interface CreateReportModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
-}
+import { CalendarIcon } from "lucide-react";
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 const formSchema = z.object({
-  name: z.string().min(2, { message: 'Le nom doit contenir au moins 2 caractères' }),
+  name: z.string().min(2, {
+    message: "Le nom doit comporter au moins 2 caractères.",
+  }),
   description: z.string().optional(),
-  source_id: z.string().min(2, { message: 'Veuillez sélectionner une source' }),
-  start_date: z.date({ required_error: 'Veuillez sélectionner une date de début' }),
-  end_date: z.date({ required_error: 'Veuillez sélectionner une date de fin' }),
-  metrics: z.array(z.string()).min(1, { message: 'Sélectionnez au moins une métrique' }),
-  dimensions: z.array(z.string()).min(1, { message: 'Sélectionnez au moins une dimension' }),
+  sourceId: z.string().min(1, {
+    message: "Veuillez sélectionner une source.",
+  }),
+  startDate: z.date(),
+  endDate: z.date(),
+  metrics: z.array(z.string()).min(1, {
+    message: "Veuillez sélectionner au moins une métrique.",
+  }),
+  dimensions: z.array(z.string()).min(1, {
+    message: "Veuillez sélectionner au moins une dimension.",
+  }),
+  filters: z.record(z.any()).optional(),
 });
 
-const availableMetrics = [
-  { label: 'Utilisateurs actifs', value: 'activeUsers' },
-  { label: 'Nouveaux utilisateurs', value: 'newUsers' },
-  { label: 'Sessions', value: 'sessions' },
-  { label: 'Taux de rebond', value: 'bounceRate' },
-  { label: 'Durée moyenne de session', value: 'avgSessionDuration' },
-  { label: 'Pages vues', value: 'pageviews' },
-  { label: 'Pages par session', value: 'pagesPerSession' },
-  { label: 'Taux de conversion', value: 'conversionRate' },
-];
+interface CreateReportModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
+}
 
-const availableDimensions = [
-  { label: 'Date', value: 'date' },
-  { label: 'Semaine', value: 'week' },
-  { label: 'Mois', value: 'month' },
-  { label: 'Pays', value: 'country' },
-  { label: 'Ville', value: 'city' },
-  { label: 'Appareil', value: 'device' },
-  { label: 'Canal', value: 'channel' },
-  { label: 'Source', value: 'source' },
-  { label: 'Navigateur', value: 'browser' },
-  { label: 'Système d\'exploitation', value: 'operatingSystem' },
-  { label: 'Page', value: 'page' },
-];
-
-const CreateReportModal: React.FC<CreateReportModalProps> = ({ isOpen, onClose, onSuccess }) => {
+const CreateReportModal: React.FC<CreateReportModalProps> = ({ open, onOpenChange, onSuccess }) => {
   const { user } = useAuth();
-  const { toast } = useToast();
-  const [openStartDate, setOpenStartDate] = useState(false);
-  const [openEndDate, setOpenEndDate] = useState(false);
-  const [openMetrics, setOpenMetrics] = useState(false);
-  const [openDimensions, setOpenDimensions] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: '',
-      description: '',
-      source_id: '',
-      start_date: undefined,
-      end_date: undefined,
-      metrics: ['activeUsers'],
-      dimensions: ['date'],
-    },
-  });
-  
-  const { data: sources } = useQuery({
-    queryKey: ['analyticsSources', user?.id],
-    queryFn: async () => {
+  const [sources, setSources] = useState<{ id: string; name: string; }[]>([]);
+
+  useEffect(() => {
+    const fetchSources = async () => {
+      if (!user) return;
       const { data, error } = await supabase
         .from('analytics_sources')
-        .select('*')
-        .order('name', { ascending: true });
-      
-      if (error) throw error;
-      return data;
+        .select('id, name')
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error fetching sources:', error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de récupérer les sources analytics",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setSources(data.map(source => ({ id: source.id, name: source.name })));
+    };
+
+    fetchSources();
+  }, [user]);
+
+  const { control, handleSubmit, formState: { errors }, setValue } = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      sourceId: "",
+      startDate: new Date(),
+      endDate: new Date(),
+      metrics: ['activeUsers'],
+      dimensions: ['date'],
+      filters: {},
     },
-    enabled: !!user?.id && isOpen,
   });
+
+  const createReport = async (values: z.infer<typeof formSchema>) => {
+    if (!user || !values.sourceId) return;
   
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    if (!user) return;
-    
     setIsSubmitting(true);
     
     try {
-      const { error } = await supabase.rpc('create_analytics_report', {
+      // Use RPC function instead of direct table insert
+      const { data, error } = await supabase.rpc('create_analytics_report', {
         p_user_id: user.id,
         p_name: values.name,
         p_description: values.description || null,
-        p_source_id: values.source_id,
-        p_start_date: format(values.start_date, 'yyyy-MM-dd'),
-        p_end_date: format(values.end_date, 'yyyy-MM-dd'),
+        p_source_id: values.sourceId,
+        p_start_date: values.startDate.toISOString(),
+        p_end_date: values.endDate.toISOString(),
         p_metrics: values.metrics,
         p_dimensions: values.dimensions,
-        p_filters: {}
+        p_filters: values.filters || null
       });
-      
+
       if (error) throw error;
       
       toast({
         title: "Rapport créé",
-        description: "Le rapport a été créé avec succès.",
+        description: "Le rapport a été créé avec succès",
       });
       
-      onSuccess();
-    } catch (error: any) {
+      onOpenChange(false);
+      if (onSuccess) onSuccess();
+    } catch (error) {
+      console.error('Error creating report:', error);
       toast({
         title: "Erreur",
-        description: error.message || "Une erreur est survenue lors de la création du rapport.",
+        description: "Impossible de créer le rapport",
         variant: "destructive",
       });
-      console.error("Erreur de création:", error);
     } finally {
       setIsSubmitting(false);
     }
   };
-  
-  const isMetricSelected = (value: string) => form.getValues().metrics.includes(value);
-  const isDimensionSelected = (value: string) => form.getValues().dimensions.includes(value);
-  
-  const toggleMetric = (value: string) => {
-    const current = form.getValues().metrics;
-    const updated = current.includes(value)
-      ? current.filter(item => item !== value)
-      : [...current, value];
-    
-    form.setValue('metrics', updated, { shouldValidate: true });
-  };
-  
-  const toggleDimension = (value: string) => {
-    const current = form.getValues().dimensions;
-    const updated = current.includes(value)
-      ? current.filter(item => item !== value)
-      : [...current, value];
-    
-    form.setValue('dimensions', updated, { shouldValidate: true });
-  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[600px]">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Créer un nouveau rapport</DialogTitle>
-          <DialogDescription>
-            Configurez les paramètres de votre rapport d'analytics personnalisé.
-          </DialogDescription>
+          <DialogTitle>Créer un rapport Analytics</DialogTitle>
         </DialogHeader>
-        
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <FormField
-              control={form.control}
+        <form onSubmit={handleSubmit(createReport)} className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="name">Nom</Label>
+            <Controller
+              control={control}
               name="name"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nom du rapport</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ex: Rapport mensuel du site web" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+                <Input id="name" placeholder="Nom du rapport" {...field} />
               )}
             />
-            
-            <FormField
-              control={form.control}
+            {errors.name && (
+              <p className="text-sm text-red-500">{errors.name.message}</p>
+            )}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="description">Description</Label>
+            <Controller
+              control={control}
               name="description"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description (optionnelle)</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Ajoutez une description pour ce rapport..." 
-                      className="resize-none min-h-[80px]"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+                <Input id="description" placeholder="Description du rapport" {...field} />
               )}
             />
-            
-            <FormField
-              control={form.control}
-              name="source_id"
+            {errors.description && (
+              <p className="text-sm text-red-500">{errors.description.message}</p>
+            )}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="sourceId">Source Analytics</Label>
+            <Controller
+              control={control}
+              name="sourceId"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Source d'analytics</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionnez une source d'analytics" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {sources?.map((source) => (
-                        <SelectItem key={source.id} value={source.id}>
-                          {source.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
+                <Select onValueChange={field.onChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner une source" defaultValue={field.value} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sources.map((source) => (
+                      <SelectItem key={source.id} value={source.id}>{source.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
             />
-            
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="start_date"
+            {errors.sourceId && (
+              <p className="text-sm text-red-500">{errors.sourceId.message}</p>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label>Date de début</Label>
+              <Controller
+                control={control}
+                name="startDate"
                 render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Date de début</FormLabel>
-                    <Popover open={openStartDate} onOpenChange={setOpenStartDate}>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(field.value, 'PP', { locale: fr })
-                            ) : (
-                              <span>Choisir une date</span>
-                            )}
-                            <Calendar className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarComponent
-                          mode="single"
-                          selected={field.value}
-                          onSelect={(date) => {
-                            field.onChange(date);
-                            setOpenStartDate(false);
-                          }}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-[150px] justify-start text-left font-normal",
+                          !field.value && "text-muted-foreground"
+                        )}
+                      >
+                        {field.value ? format(field.value, "PPP") : (
+                          <span>Choisir une date</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        disabled={(date) =>
+                          date > new Date()
+                        }
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                 )}
               />
-              
-              <FormField
-                control={form.control}
-                name="end_date"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Date de fin</FormLabel>
-                    <Popover open={openEndDate} onOpenChange={setOpenEndDate}>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(field.value, 'PP', { locale: fr })
-                            ) : (
-                              <span>Choisir une date</span>
-                            )}
-                            <Calendar className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarComponent
-                          mode="single"
-                          selected={field.value}
-                          onSelect={(date) => {
-                            field.onChange(date);
-                            setOpenEndDate(false);
-                          }}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {errors.startDate && (
+                <p className="text-sm text-red-500">{errors.startDate.message}</p>
+              )}
             </div>
-            
-            <FormField
-              control={form.control}
+            <div className="grid gap-2">
+              <Label>Date de fin</Label>
+              <Controller
+                control={control}
+                name="endDate"
+                render={({ field }) => (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-[150px] justify-start text-left font-normal",
+                          !field.value && "text-muted-foreground"
+                        )}
+                      >
+                        {field.value ? format(field.value, "PPP") : (
+                          <span>Choisir une date</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        disabled={(date) =>
+                          date > new Date()
+                        }
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                )}
+              />
+              {errors.endDate && (
+                <p className="text-sm text-red-500">{errors.endDate.message}</p>
+              )}
+            </div>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="metrics">Métriques</Label>
+            <Controller
+              control={control}
               name="metrics"
               render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Métriques</FormLabel>
-                  <Popover open={openMetrics} onOpenChange={setOpenMetrics}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          className={cn(
-                            "justify-between",
-                            !field.value.length && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value.length > 0
-                            ? `${field.value.length} métriques sélectionnées`
-                            : "Sélectionner des métriques"}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[250px] p-0">
-                      <Command>
-                        <CommandInput placeholder="Rechercher une métrique..." />
-                        <CommandEmpty>Aucune métrique trouvée.</CommandEmpty>
-                        <CommandGroup className="max-h-[300px] overflow-y-auto">
-                          {availableMetrics.map((metric) => (
-                            <CommandItem
-                              key={metric.value}
-                              onSelect={() => toggleMetric(metric.value)}
-                              className="flex items-center gap-2"
-                            >
-                              <div className="flex items-center gap-2">
-                                <Checkbox
-                                  checked={isMetricSelected(metric.value)}
-                                  onCheckedChange={() => toggleMetric(metric.value)}
-                                />
-                                {metric.label}
-                              </div>
-                              <Check
-                                className={cn(
-                                  "ml-auto h-4 w-4",
-                                  isMetricSelected(metric.value) ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
+                <Select onValueChange={(value) => {
+                  field.onChange([value]);
+                  setValue('metrics', [value]);
+                }}
+                defaultValue={field.value}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner une métrique" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="activeUsers">Utilisateurs actifs</SelectItem>
+                    <SelectItem value="newUsers">Nouveaux utilisateurs</SelectItem>
+                    <SelectItem value="sessions">Sessions</SelectItem>
+                    <SelectItem value="pageviews">Vues de page</SelectItem>
+                  </SelectContent>
+                </Select>
               )}
             />
-            
-            <FormField
-              control={form.control}
+            {errors.metrics && (
+              <p className="text-sm text-red-500">{errors.metrics.message}</p>
+            )}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="dimensions">Dimensions</Label>
+            <Controller
+              control={control}
               name="dimensions"
               render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Dimensions</FormLabel>
-                  <Popover open={openDimensions} onOpenChange={setOpenDimensions}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          className={cn(
-                            "justify-between",
-                            !field.value.length && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value.length > 0
-                            ? `${field.value.length} dimensions sélectionnées`
-                            : "Sélectionner des dimensions"}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[250px] p-0">
-                      <Command>
-                        <CommandInput placeholder="Rechercher une dimension..." />
-                        <CommandEmpty>Aucune dimension trouvée.</CommandEmpty>
-                        <CommandGroup className="max-h-[300px] overflow-y-auto">
-                          {availableDimensions.map((dimension) => (
-                            <CommandItem
-                              key={dimension.value}
-                              onSelect={() => toggleDimension(dimension.value)}
-                              className="flex items-center gap-2"
-                            >
-                              <div className="flex items-center gap-2">
-                                <Checkbox
-                                  checked={isDimensionSelected(dimension.value)}
-                                  onCheckedChange={() => toggleDimension(dimension.value)}
-                                />
-                                {dimension.label}
-                              </div>
-                              <Check
-                                className={cn(
-                                  "ml-auto h-4 w-4",
-                                  isDimensionSelected(dimension.value) ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
+                <Select onValueChange={(value) => {
+                  field.onChange([value]);
+                  setValue('dimensions', [value]);
+                }}
+                defaultValue={field.value}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner une dimension" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="date">Date</SelectItem>
+                    <SelectItem value="source">Source</SelectItem>
+                    <SelectItem value="channel">Canal</SelectItem>
+                    <SelectItem value="country">Pays</SelectItem>
+                    <SelectItem value="device">Appareil</SelectItem>
+                    <SelectItem value="browser">Navigateur</SelectItem>
+                  </SelectContent>
+                </Select>
               )}
             />
-            
-            <DialogFooter>
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={onClose}
-                disabled={isSubmitting}
-              >
-                Annuler
-              </Button>
-              <Button 
-                type="submit" 
-                disabled={isSubmitting}
-                className="bg-analytics-blue hover:bg-analytics-blue/90 text-white"
-              >
-                {isSubmitting ? 'Création...' : 'Créer le rapport'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+            {errors.dimensions && (
+              <p className="text-sm text-red-500">{errors.dimensions.message}</p>
+            )}
+          </div>
+          {/* Filters could be added here in the future */}
+          <DialogFooter>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Création..." : "Créer"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

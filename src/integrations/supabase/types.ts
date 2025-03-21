@@ -83,7 +83,42 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      create_analytics_report: {
+        Args: {
+          p_user_id: string
+          p_name: string
+          p_description: string
+          p_source_id: string
+          p_start_date: string
+          p_end_date: string
+          p_metrics: string[]
+          p_dimensions: string[]
+          p_filters: Json
+        }
+        Returns: string
+      }
+      delete_analytics_report: {
+        Args: {
+          report_id: string
+        }
+        Returns: boolean
+      }
+      get_analytics_report: {
+        Args: {
+          report_id: string
+        }
+        Returns: Json
+      }
+      get_analytics_report_with_source: {
+        Args: {
+          report_id: string
+        }
+        Returns: Json
+      }
+      get_analytics_reports_with_sources: {
+        Args: Record<PropertyKey, never>
+        Returns: Json[]
+      }
     }
     Enums: {
       [_ in never]: never

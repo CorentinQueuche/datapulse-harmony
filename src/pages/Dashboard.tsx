@@ -1,61 +1,46 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { format, subDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
-import { ChevronDown, RefreshCw, LineChart } from 'lucide-react';
+import { format, subDays } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
 import VisitorsChart from '@/components/analytics/VisitorsChart';
-import PerformanceMetrics from '@/components/analytics/PerformanceMetrics';
-import TrafficSources from '@/components/analytics/TrafficSources';
-import AnalyticsSummary from '@/components/analytics/AnalyticsSummary';
-import NotificationsPanel from '@/components/analytics/NotificationsPanel';
-import { useAnalyticsData } from '@/hooks/useAnalyticsData';
-import { AnalyticsReport } from '@/types/supabase-extensions';
-
-const DateRangeSelector = ({ selectedPeriod, onChange }: { selectedPeriod: string; onChange: (period: string) => void }) => (
-  <div className="flex items-center">
-    <label htmlFor="period" className="mr-2 text-sm text-gray-700">Période:</label>
-    <select
-      id="period"
-      className="px-4 py-2 bg-white border rounded-md shadow-sm text-sm"
-      value={selectedPeriod}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      <option value="7d">7 jours</option>
-      <option value="30d">30 jours</option>
-      <option value="90d">90 jours</option>
-    </select>
-  </div>
-);
-
-const periodOptions = [
-  { label: '7 jours', value: '7d' },
-  { label: '30 jours', value: '30d' },
-  { label: '90 jours', value: '90d' },
-];
+import MetricCard from '@/components/analytics/MetricCard';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/components/ui/use-toast';
+import { AnalyticsReportWithSource } from '@/types/supabase-extensions';
+import { LineChart } from 'lucide-react';
 
 const Dashboard = () => {
-  const [searchParams] = useSearchParams();
-  const reportId = searchParams.get('report');
-  const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
-  const [selectedPeriod, setSelectedPeriod] = useState('30d');
-  const [isSourcesDropdownOpen, setIsSourcesDropdownOpen] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  
-  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
-  
-  const endDate = new Date();
-  let startDate = subDays(endDate, 30);
+  const { toast } = useToast();
+  const [period, setPeriod] = useState('30d');
+  const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 
-  if (selectedPeriod === '7d') {
-    startDate = subDays(endDate, 7);
-  } else if (selectedPeriod === '90d') {
-    startDate = subDays(endDate, 90);
-  }
+  // Replace the featuredReport query with:
+  const { data: featuredReport, isLoading: isReportLoading } = useQuery({
+    queryKey: ['featuredReport'],
+    queryFn: async () => {
+      // First get the reports
+      const { data, error } = await supabase
+        .rpc('get_analytics_reports_with_sources');
+      
+      if (error) throw new Error(error.message);
+      
+      // Find the most recent report (assuming they're returned in descending order)
+      const reports = data as AnalyticsReportWithSource[];
+      return reports && reports.length > 0 ? reports[0] : null;
+    },
+    meta: {
+      errorMessage: 'Failed to fetch featured report'
+    }
+  });
 
-  const { data: sources, isLoading: sourcesLoading } = useQuery({
+  const { data: sources, isLoading: isSourcesLoading } = useQuery({
     queryKey: ['analyticsSources'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -63,166 +48,197 @@ const Dashboard = () => {
         .select('*')
         .order('created_at', { ascending: false });
       
-      if (error) throw new Error(error.message);
+      if (error) throw error;
       return data;
     },
-  });
-
-  const { data: report, isLoading: reportLoading } = useQuery({
-    queryKey: ['analyticsReport', reportId],
-    queryFn: async () => {
-      if (!reportId) return null;
-      
-      const { data, error } = await supabase
-        .rpc('get_analytics_report_with_source', { report_id: reportId });
-      
-      if (error) throw new Error(error.message);
-      return data as unknown as AnalyticsReport & { analytics_sources: { name: string } | null };
-    },
-    enabled: !!reportId
-  });
-
-  useEffect(() => {
-    if (report) {
-      setSelectedSourceId(report.source_id);
+    meta: {
+      errorMessage: 'Failed to fetch analytics sources'
     }
-  }, [report]);
-
-  const handleSourceChange = (sourceId: string) => {
-    setSelectedSourceId(sourceId);
-    setIsSourcesDropdownOpen(false);
-  };
-
-  const handlePeriodChange = (period: string) => {
-    setSelectedPeriod(period);
-  };
-
-  const { data: analyticsData, isLoading: dataLoading, error: dataError } = useAnalyticsData({
-    sourceId: selectedSourceId,
-    startDate: startDate.toISOString().split('T')[0],
-    endDate: endDate.toISOString().split('T')[0],
-    reportId: reportId || undefined
   });
 
-  const isLoading = sourcesLoading || dataLoading || (reportId && reportLoading);
+  // Update dates when period changes
+  useEffect(() => {
+    const now = new Date();
+    let start;
+    
+    switch (period) {
+      case '7d':
+        start = subDays(now, 7);
+        break;
+      case '30d':
+        start = subDays(now, 30);
+        break;
+      case '90d':
+        start = subDays(now, 90);
+        break;
+      case 'year':
+        start = new Date(now.getFullYear(), 0, 1); // Jan 1 of current year
+        break;
+      default:
+        start = subDays(now, 30);
+    }
+    
+    setStartDate(format(start, 'yyyy-MM-dd'));
+    setEndDate(format(now, 'yyyy-MM-dd'));
+  }, [period]);
 
-  const renderSourcesDropdown = () => (
-    <div className="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10">
-      {sources?.map((source) => (
-        <button
-          key={source.id}
-          onClick={() => handleSourceChange(source.id)}
-          className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 ${selectedSourceId === source.id ? 'bg-gray-100' : ''}`}
-        >
-          {source.name}
-        </button>
-      ))}
-    </div>
-  );
+  // Get the first source if available
+  const defaultSource = sources && sources.length > 0 ? sources[0] : null;
+  
+  // Use featured report if available, otherwise use the first source
+  const sourceId = featuredReport?.source_id || (defaultSource?.id || null);
+  const reportId = featuredReport?.id;
 
   return (
-    <div className="flex h-screen bg-analytics-gray-50">
-      <Sidebar isMenuOpen={isMenuOpen} toggleMenu={toggleMenu} />
-      
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header 
-          title={report ? report.name : "Tableau de bord"} 
-          subtitle={report 
-            ? `Source: ${report.analytics_sources?.name || 'Inconnue'} | Période: ${format(new Date(report.start_date), 'dd/MM/yyyy')} - ${format(new Date(report.end_date), 'dd/MM/yyyy')}`
-            : "Vue d'ensemble de vos performances"
-          }
-        />
-        
-        <main className="flex-1 overflow-y-auto p-6">
-          {!report && (
-            <div className="mb-6 flex flex-wrap gap-4">
-              <div className="relative">
-                <button
-                  onClick={() => setIsSourcesDropdownOpen(!isSourcesDropdownOpen)}
-                  className="flex items-center px-4 py-2 bg-white border rounded-md shadow-sm text-sm"
-                >
-                  <span>Source: {sources?.find(s => s.id === selectedSourceId)?.name || 'Choisir une source'}</span>
-                  <ChevronDown className="ml-2 h-4 w-4" />
-                </button>
-                
-                {isSourcesDropdownOpen && renderSourcesDropdown()}
+    <div className="min-h-screen bg-gray-50">
+      <Header />
+      <div className="flex">
+        <Sidebar isMenuOpen={false} toggleMenu={() => {}} />
+        <main className="flex-1 p-6">
+          <div className="mx-auto max-w-7xl">
+            <div className="flex flex-col gap-6">
+              <div className="flex flex-col gap-2">
+                <h1 className="text-3xl font-bold tracking-tight">Tableau de bord</h1>
+                <p className="text-muted-foreground">
+                  Visualisez les performances de votre site web
+                </p>
               </div>
-              
-              <DateRangeSelector 
-                selectedPeriod={selectedPeriod}
-                onChange={handlePeriodChange}
-              />
-            </div>
-          )}
 
-          {isLoading ? (
-            <div className="flex justify-center items-center h-64">
-              <RefreshCw className="animate-spin h-8 w-8 text-analytics-gray-400" />
-            </div>
-          ) : dataError ? (
-            <div className="bg-red-50 p-4 rounded-md text-red-800">
-              Une erreur est survenue lors du chargement des données d'analytics.
-            </div>
-          ) : !selectedSourceId && !report ? (
-            <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-              <div className="mx-auto w-12 h-12 rounded-full bg-analytics-blue/10 flex items-center justify-center mb-4">
-                <LineChart className="h-6 w-6 text-analytics-blue" />
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Aucune source sélectionnée
-              </h3>
-              <p className="text-gray-500 mb-6 max-w-md mx-auto">
-                Veuillez sélectionner une source d'analytics pour afficher les données.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                <AnalyticsSummary 
-                  sourceId={selectedSourceId || ''} 
-                  startDate={report ? report.start_date : startDate.toISOString().split('T')[0]} 
-                  endDate={report ? report.end_date : endDate.toISOString().split('T')[0]}
-                  reportId={reportId || undefined}
-                />
-                
-                <div className="lg:col-span-1">
-                  <NotificationsPanel />
+              {isReportLoading || isSourcesLoading ? (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  {[...Array(4)].map((_, i) => (
+                    <Card key={i}>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">
+                          <Skeleton className="h-4 w-[100px]" />
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <Skeleton className="h-8 w-[120px]" />
+                        <Skeleton className="mt-2 h-4 w-[80px]" />
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-              </div>
-              
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <VisitorsChart 
-                  sourceId={selectedSourceId || ''} 
-                  startDate={report ? report.start_date : startDate.toISOString().split('T')[0]} 
-                  endDate={report ? report.end_date : endDate.toISOString().split('T')[0]} 
-                  period={selectedPeriod}
-                  reportId={reportId || undefined}
-                />
+              ) : sourceId ? (
+                <>
+                  {featuredReport && (
+                    <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <LineChart className="h-5 w-5 text-analytics-blue" />
+                        <h3 className="font-medium">Rapport: {featuredReport.name}</h3>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {featuredReport.description || 'Aucune description'}
+                      </p>
+                      <div className="text-xs text-muted-foreground mt-2">
+                        Source: {featuredReport.analytics_sources?.name || 'Inconnue'}
+                      </div>
+                    </div>
+                  )}
 
-                <PerformanceMetrics 
-                  sourceId={selectedSourceId || ''} 
-                  startDate={report ? report.start_date : startDate.toISOString().split('T')[0]} 
-                  endDate={report ? report.end_date : endDate.toISOString().split('T')[0]}
-                  reportId={reportId || undefined}
-                />
-              </div>
-              
-              <div>
-                <TrafficSources 
-                  sourceId={selectedSourceId || ''} 
-                  startDate={report ? report.start_date : startDate.toISOString().split('T')[0]} 
-                  endDate={report ? report.end_date : endDate.toISOString().split('T')[0]}
-                  reportId={reportId || undefined}
-                />
-              </div>
-              
-              {report && report.dimensions && report.dimensions.includes('deviceCategory') && (
-                <div>
-                  {/* Custom dimensions visualization would go here */}
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <MetricCard
+                      title="Visiteurs actifs"
+                      metric="activeUsers"
+                      sourceId={sourceId}
+                      startDate={startDate}
+                      endDate={endDate}
+                      reportId={reportId}
+                    />
+                    <MetricCard
+                      title="Nouveaux utilisateurs"
+                      metric="newUsers"
+                      sourceId={sourceId}
+                      startDate={startDate}
+                      endDate={endDate}
+                      reportId={reportId}
+                    />
+                    <MetricCard
+                      title="Sessions"
+                      metric="sessions"
+                      sourceId={sourceId}
+                      startDate={startDate}
+                      endDate={endDate}
+                      reportId={reportId}
+                    />
+                    <MetricCard
+                      title="Pages vues"
+                      metric="pageviews"
+                      sourceId={sourceId}
+                      startDate={startDate}
+                      endDate={endDate}
+                      reportId={reportId}
+                    />
+                  </div>
+
+                  <Tabs defaultValue="visitors" className="space-y-4">
+                    <TabsList>
+                      <TabsTrigger value="visitors">Visiteurs</TabsTrigger>
+                      <TabsTrigger value="engagement">Engagement</TabsTrigger>
+                      <TabsTrigger value="acquisition">Acquisition</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="visitors" className="space-y-4">
+                      <VisitorsChart
+                        sourceId={sourceId}
+                        startDate={startDate}
+                        endDate={endDate}
+                        period={period}
+                        reportId={reportId}
+                      />
+                    </TabsContent>
+                    <TabsContent value="engagement">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Engagement</CardTitle>
+                          <CardDescription>
+                            Mesures d'engagement des utilisateurs sur votre site
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="pl-2">
+                          <div className="flex h-[300px] items-center justify-center">
+                            <p className="text-sm text-muted-foreground">
+                              Les graphiques d'engagement seront disponibles prochainement
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                    <TabsContent value="acquisition">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Acquisition</CardTitle>
+                          <CardDescription>
+                            Comment les utilisateurs découvrent votre site
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="pl-2">
+                          <div className="flex h-[300px] items-center justify-center">
+                            <p className="text-sm text-muted-foreground">
+                              Les graphiques d'acquisition seront disponibles prochainement
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                  </Tabs>
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center animate-in fade-in-50">
+                  <div className="mx-auto flex max-w-[420px] flex-col items-center justify-center text-center">
+                    <LineChart className="h-10 w-10 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-semibold">Aucune source d'analytics</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Vous n'avez pas encore configuré de source d'analytics. Ajoutez une source pour commencer à visualiser vos données.
+                    </p>
+                    <Button variant="default" asChild>
+                      <a href="/analytics-sources">Configurer une source</a>
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
-          )}
+          </div>
         </main>
       </div>
     </div>

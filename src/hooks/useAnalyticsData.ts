@@ -41,7 +41,7 @@ export const useAnalyticsData = ({
     queryFn: async () => {
       if (!reportId) return null;
 
-      // Use raw RPC call instead of typed tables to avoid type errors
+      // Use the new RPC function instead of direct table access
       const { data, error } = await supabase
         .rpc('get_analytics_report', { report_id: reportId });
       
