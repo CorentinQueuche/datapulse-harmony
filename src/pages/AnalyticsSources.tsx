@@ -1,11 +1,9 @@
-
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, Database } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,8 +12,10 @@ import AddAnalyticsSourceModal from '@/components/analytics/AddAnalyticsSourceMo
 const AnalyticsSources = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const navigate = useNavigate();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  
+  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
 
   const { data: sources, isLoading, error, refetch } = useQuery({
     queryKey: ['analyticsSources', user?.id],
@@ -58,7 +58,7 @@ const AnalyticsSources = () => {
 
   return (
     <div className="flex h-screen bg-analytics-gray-50">
-      <Sidebar />
+      <Sidebar isMenuOpen={isMenuOpen} toggleMenu={toggleMenu} />
       
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 

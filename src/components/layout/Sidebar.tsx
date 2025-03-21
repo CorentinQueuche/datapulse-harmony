@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -16,11 +17,11 @@ import {
 } from 'lucide-react';
 
 interface SidebarProps {
-  isMenuOpen: boolean;
-  toggleMenu: () => void;
+  isMenuOpen?: boolean;
+  toggleMenu?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isMenuOpen, toggleMenu }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isMenuOpen = false, toggleMenu = () => {} }) => {
   const { user, signOut } = useAuth();
   const location = useLocation();
   const isMobile = useIsMobile();

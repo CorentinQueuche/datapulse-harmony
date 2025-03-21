@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { format, subDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
-import { ChevronDown, RefreshCw } from 'lucide-react';
+import { ChevronDown, RefreshCw, LineChart } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
 import VisitorsChart from '@/components/analytics/VisitorsChart';
@@ -42,6 +42,9 @@ const Dashboard = () => {
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState('30d');
   const [isSourcesDropdownOpen, setIsSourcesDropdownOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  
+  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
   
   const endDate = new Date();
   let startDate = subDays(endDate, 30);
@@ -52,7 +55,6 @@ const Dashboard = () => {
     startDate = subDays(endDate, 90);
   }
 
-  // Fetch analytics sources
   const { data: sources, isLoading: sourcesLoading } = useQuery({
     queryKey: ['analyticsSources'],
     queryFn: async () => {
@@ -66,37 +68,25 @@ const Dashboard = () => {
     },
   });
 
-  // Fetch report if reportId is present
   const { data: report, isLoading: reportLoading } = useQuery({
     queryKey: ['analyticsReport', reportId],
     queryFn: async () => {
       if (!reportId) return null;
       
       const { data, error } = await supabase
-        .from('analytics_reports')
-        .select('*, analytics_sources(name)')
-        .eq('id', reportId)
-        .single();
+        .rpc('get_analytics_report_with_source', { report_id: reportId });
       
       if (error) throw new Error(error.message);
-      return data as AnalyticsReport & { analytics_sources: { name: string } | null };
+      return data as unknown as AnalyticsReport & { analytics_sources: { name: string } | null };
     },
-    enabled: !!reportId,
-    meta: {
-      onSuccess: (data) => {
-        if (data) {
-          setSelectedSourceId(data.source_id);
-        }
-      }
-    }
+    enabled: !!reportId
   });
 
-  // Set default source if none selected
   useEffect(() => {
-    if (!selectedSourceId && sources && sources.length > 0 && !reportId) {
-      setSelectedSourceId(sources[0].id);
+    if (report) {
+      setSelectedSourceId(report.source_id);
     }
-  }, [sources, selectedSourceId, reportId]);
+  }, [report]);
 
   const handleSourceChange = (sourceId: string) => {
     setSelectedSourceId(sourceId);
@@ -132,7 +122,7 @@ const Dashboard = () => {
 
   return (
     <div className="flex h-screen bg-analytics-gray-50">
-      <Sidebar />
+      <Sidebar isMenuOpen={isMenuOpen} toggleMenu={toggleMenu} />
       
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 
@@ -144,7 +134,6 @@ const Dashboard = () => {
         />
         
         <main className="flex-1 overflow-y-auto p-6">
-          {/* Controls */}
           {!report && (
             <div className="mb-6 flex flex-wrap gap-4">
               <div className="relative">
@@ -156,7 +145,6 @@ const Dashboard = () => {
                   <ChevronDown className="ml-2 h-4 w-4" />
                 </button>
                 
-                {/* Sources dropdown */}
                 {isSourcesDropdownOpen && renderSourcesDropdown()}
               </div>
               
@@ -189,7 +177,6 @@ const Dashboard = () => {
             </div>
           ) : (
             <div className="space-y-6">
-              {/* Widgets Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 <AnalyticsSummary 
                   sourceId={selectedSourceId || ''} 
@@ -203,7 +190,6 @@ const Dashboard = () => {
                 </div>
               </div>
               
-              {/* Charts Row */}
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 <VisitorsChart 
                   sourceId={selectedSourceId || ''} 
@@ -221,7 +207,6 @@ const Dashboard = () => {
                 />
               </div>
               
-              {/* Traffic Sources */}
               <div>
                 <TrafficSources 
                   sourceId={selectedSourceId || ''} 
@@ -231,7 +216,6 @@ const Dashboard = () => {
                 />
               </div>
               
-              {/* Custom Dimensions (only for reports with custom dimensions) */}
               {report && report.dimensions && report.dimensions.includes('deviceCategory') && (
                 <div>
                   {/* Custom dimensions visualization would go here */}

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -109,7 +108,6 @@ const CreateReportModal: React.FC<CreateReportModalProps> = ({ isOpen, onClose, 
     },
   });
   
-  // Récupérer les sources d'analytics disponibles
   const { data: sources } = useQuery({
     queryKey: ['analyticsSources', user?.id],
     queryFn: async () => {
@@ -130,16 +128,16 @@ const CreateReportModal: React.FC<CreateReportModalProps> = ({ isOpen, onClose, 
     setIsSubmitting(true);
     
     try {
-      const { error } = await supabase.from('analytics_reports').insert({
-        user_id: user.id,
-        name: values.name,
-        description: values.description || null,
-        source_id: values.source_id,
-        start_date: format(values.start_date, 'yyyy-MM-dd'),
-        end_date: format(values.end_date, 'yyyy-MM-dd'),
-        metrics: values.metrics,
-        dimensions: values.dimensions,
-        filters: {},
+      const { error } = await supabase.rpc('create_analytics_report', {
+        p_user_id: user.id,
+        p_name: values.name,
+        p_description: values.description || null,
+        p_source_id: values.source_id,
+        p_start_date: format(values.start_date, 'yyyy-MM-dd'),
+        p_end_date: format(values.end_date, 'yyyy-MM-dd'),
+        p_metrics: values.metrics,
+        p_dimensions: values.dimensions,
+        p_filters: {}
       });
       
       if (error) throw error;

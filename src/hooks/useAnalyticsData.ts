@@ -41,24 +41,24 @@ export const useAnalyticsData = ({
     queryFn: async () => {
       if (!reportId) return null;
 
+      // Use raw RPC call instead of typed tables to avoid type errors
       const { data, error } = await supabase
-        .from('analytics_reports')
-        .select('*')
-        .eq('id', reportId)
-        .single();
+        .rpc('get_analytics_report', { report_id: reportId });
       
       if (error) throw new Error(error.message);
-      return data as AnalyticsReport;
+      return data as unknown as AnalyticsReport;
     },
     enabled: !!reportId && !!token,
     meta: {
-      onSuccess: (data: AnalyticsReport | null) => {
-        if (data) {
-          setReport(data);
-        }
-      }
+      errorMessage: 'Failed to fetch report'
     }
   });
+
+  useEffect(() => {
+    if (reportQuery.data) {
+      setReport(reportQuery.data as AnalyticsReport);
+    }
+  }, [reportQuery.data]);
 
   // Détermine les paramètres à utiliser (du rapport ou des props)
   const effectiveSourceId = report?.source_id || sourceId;

@@ -17,14 +17,16 @@ const AnalyticsReports = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  
+  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
 
   const { data: reports, isLoading, error, refetch } = useQuery({
     queryKey: ['analyticsReports', user?.id],
     queryFn: async () => {
+      // Use raw RPC call instead of typed tables
       const { data, error } = await supabase
-        .from('analytics_reports')
-        .select('*, analytics_sources(name)')
-        .order('created_at', { ascending: false });
+        .rpc('get_analytics_reports_with_sources');
       
       if (error) throw new Error(error.message);
       return data as AnalyticsReportWithSource[];
@@ -34,10 +36,9 @@ const AnalyticsReports = () => {
 
   const handleDeleteReport = async (id: string) => {
     try {
+      // Using rpc instead of direct table access
       const { error } = await supabase
-        .from('analytics_reports')
-        .delete()
-        .eq('id', id);
+        .rpc('delete_analytics_report', { report_id: id });
       
       if (error) throw error;
       
@@ -69,7 +70,7 @@ const AnalyticsReports = () => {
 
   return (
     <div className="flex h-screen bg-analytics-gray-50">
-      <Sidebar />
+      <Sidebar isMenuOpen={isMenuOpen} toggleMenu={toggleMenu} />
       
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 
