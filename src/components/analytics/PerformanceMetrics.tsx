@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { 
   BarChart, 
@@ -13,9 +12,10 @@ import { RefreshCw, AlertCircle } from 'lucide-react';
 import { useAnalyticsData } from '@/hooks/useAnalyticsData';
 
 interface PerformanceMetricsProps {
-  sourceId: string | null;
+  sourceId: string;
   startDate: string;
   endDate: string;
+  reportId?: string;
 }
 
 // Sample data
@@ -28,12 +28,13 @@ const sampleData = [
   { name: 'Contact', visits: 2390, conversion: 800 },
 ];
 
-const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ sourceId, startDate, endDate }) => {
+const PerformanceMetrics: React.FC<PerformanceMetricsProps> = ({ sourceId, startDate, endDate, reportId }) => {
   const { data, isLoading, error } = useAnalyticsData({
-    sourceId: sourceId || '',
+    sourceId,
     startDate,
     endDate,
-    metrics: ['screenPageViews', 'conversions'],
+    reportId,
+    metrics: ['pageviews', 'avgPageLoadTime', 'bounceRate'],
     dimensions: ['pagePath'],
   });
 

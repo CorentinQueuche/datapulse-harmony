@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   AreaChart, 
@@ -15,10 +14,11 @@ import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 interface VisitorsChartProps {
-  sourceId: string | null;
+  sourceId: string;
   startDate: string;
   endDate: string;
   period: string;
+  reportId?: string;
 }
 
 // Sample data
@@ -45,14 +45,15 @@ const periods = [
   { label: 'Tout', value: 'all' },
 ];
 
-const VisitorsChart: React.FC<VisitorsChartProps> = ({ sourceId, startDate, endDate, period }) => {
+const VisitorsChart: React.FC<VisitorsChartProps> = ({ sourceId, startDate, endDate, period, reportId }) => {
   const [showPeriodSelector, setShowPeriodSelector] = useState(false);
   
   const { data, isLoading, error } = useAnalyticsData({
-    sourceId: sourceId || '',
+    sourceId,
     startDate,
     endDate,
-    metrics: ['activeUsers', 'screenPageViews'],
+    reportId,
+    metrics: ['activeUsers', 'newUsers'],
     dimensions: ['date'],
   });
 

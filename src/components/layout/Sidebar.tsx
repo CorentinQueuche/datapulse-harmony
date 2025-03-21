@@ -1,185 +1,101 @@
-
-import React, { useState } from 'react';
+import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { cn } from '@/lib/utils';
-import { useMobile } from '@/hooks/use-mobile';
-import { ChevronDown, ChevronRight, Menu } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/useAuth';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { Separator } from '@/components/ui/separator';
 import { 
-  LayoutDashboard, 
-  BarChart3, 
-  Globe2, 
+  Home, 
+  LineChart, 
   Users, 
   Settings, 
-  HelpCircle,
-  FileBarChart,
-  LogOut
+  LogOut, 
+  Menu, 
+  Database,
+  FileBarChart
 } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
 
-const Sidebar = () => {
+interface SidebarProps {
+  isMenuOpen: boolean;
+  toggleMenu: () => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ isMenuOpen, toggleMenu }) => {
+  const { user, signOut } = useAuth();
   const location = useLocation();
-  const isMobile = useMobile();
-  const [isOpen, setIsOpen] = useState(!isMobile);
-  const [marketingExpanded, setMarketingExpanded] = useState(false);
-  const { signOut } = useAuth();
+  const isMobile = useIsMobile();
 
-  // Classes conditionnelles basées sur l'état d'ouverture de la sidebar
-  const sidebarClass = cn(
-    "bg-white border-r border-analytics-gray-200 flex flex-col transition-all duration-300 z-10",
-    isOpen ? "w-64" : "w-20"
-  );
-
-  // Classes pour les items du menu
-  const getItemClass = (path: string) => {
-    return cn(
-      "flex items-center px-4 py-3 text-sm font-medium rounded-md transition-colors",
-      location.pathname === path 
-        ? "bg-analytics-blue/10 text-analytics-blue" 
-        : "text-analytics-gray-700 hover:bg-analytics-gray-100",
-      !isOpen && "justify-center px-0"
-    );
-  };
-
-  const getItemIconClass = () => {
-    return cn("h-5 w-5", !isOpen && "mx-auto");
-  };
+  const sidebarItems = [
+    {
+      path: '/dashboard',
+      label: 'Tableau de bord',
+      icon: <Home className="h-4 w-4 mr-2" />,
+    },
+    {
+      path: '/analytics-sources',
+      label: 'Sources Analytics',
+      icon: <Database className="h-4 w-4 mr-2" />,
+    },
+    {
+      path: '/analytics-reports',
+      label: 'Rapports Analytics',
+      icon: <FileBarChart className="h-4 w-4 mr-2" />,
+    },
+    {
+      path: '/users',
+      label: 'Utilisateurs',
+      icon: <Users className="h-4 w-4 mr-2" />,
+    },
+    {
+      path: '/settings',
+      label: 'Paramètres',
+      icon: <Settings className="h-4 w-4 mr-2" />,
+    },
+  ];
 
   return (
-    <>
-      {/* Overlay pour fermer le menu sur mobile */}
-      {isMobile && isOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-20"
-          onClick={() => setIsOpen(false)}
-        ></div>
-      )}
-      
-      {/* Bouton du menu mobile */}
-      {isMobile && (
-        <button 
-          className="fixed top-4 left-4 z-30 bg-white rounded-md p-2 shadow-md"
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          <Menu className="h-6 w-6 text-analytics-gray-800" />
-        </button>
-      )}
-      
-      {/* Sidebar */}
-      <aside 
-        className={cn(
-          sidebarClass,
-          isMobile && "fixed inset-y-0 left-0 transform z-30",
-          isMobile && !isOpen && "-translate-x-full"
+    <aside
+      className={`
+        ${isMobile ? 'fixed top-0 left-0 h-full w-72 bg-white shadow-lg z-50 transform transition-transform duration-300' : 'hidden lg:flex flex-col h-screen w-72 bg-white border-r'}
+        ${isMobile ? (isMenuOpen ? 'translate-x-0' : '-translate-x-full') : 'flex'}
+      `}
+    >
+      <div className="flex items-center justify-between p-4">
+        <Link to="/" className="flex items-center text-lg font-semibold">
+          <LineChart className="h-6 w-6 mr-2 text-analytics-blue" />
+          <span>Datapulse</span>
+        </Link>
+        {isMobile && (
+          <Button variant="ghost" onClick={toggleMenu}>
+            <Menu className="h-6 w-6" />
+          </Button>
         )}
-      >
-        {/* Logo */}
-        <div className="p-4 border-b border-analytics-gray-200">
-          <div className="flex items-center h-8">
-            {isOpen ? (
-              <div className="font-semibold text-xl text-analytics-blue">Analytics Pro</div>
-            ) : (
-              <div className="w-8 h-8 rounded-md bg-analytics-blue flex items-center justify-center text-white font-bold">
-                A
-              </div>
-            )}
-            
-            {!isMobile && (
-              <button 
-                className="ml-auto text-analytics-gray-500 hover:text-analytics-gray-700"
-                onClick={() => setIsOpen(!isOpen)}
-              >
-                {isOpen ? <ChevronRight className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-              </button>
-            )}
-          </div>
-        </div>
-        
-        {/* Menu items */}
-        <nav className="flex-1 py-4 px-2 space-y-1">
-          <Link to="/dashboard" className={getItemClass("/dashboard")}>
-            <LayoutDashboard className={getItemIconClass()} />
-            {isOpen && <span className="ml-3">Dashboard</span>}
-          </Link>
-          
-          <Link to="/analytics-reports" className={getItemClass("/analytics-reports")}>
-            <FileBarChart className={getItemIconClass()} />
-            {isOpen && <span className="ml-3">Rapports</span>}
-          </Link>
-          
-          <Link to="/analytics-sources" className={getItemClass("/analytics-sources")}>
-            <BarChart3 className={getItemIconClass()} />
-            {isOpen && <span className="ml-3">Sources d'Analytics</span>}
-          </Link>
-          
-          <div className={cn("px-3 py-2 text-xs font-semibold text-analytics-gray-500 uppercase", !isOpen && "text-center")}>
-            {isOpen ? "Marketing" : "MKT"}
-          </div>
-          
-          <button 
-            className={cn(
-              "w-full flex items-center px-4 py-3 text-sm font-medium rounded-md text-analytics-gray-700 hover:bg-analytics-gray-100 transition-colors",
-              !isOpen && "justify-center px-0"
-            )}
-            onClick={() => setMarketingExpanded(!marketingExpanded)}
-          >
-            <Globe2 className={getItemIconClass()} />
-            {isOpen && (
-              <>
-                <span className="ml-3 flex-1 text-left">Acquisition</span>
-                {marketingExpanded ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
-              </>
-            )}
-          </button>
-          
-          {isOpen && marketingExpanded && (
-            <div className="ml-6 space-y-1">
-              <a href="#" className="block px-4 py-2 text-sm text-analytics-gray-600 hover:bg-analytics-gray-100 rounded-md">
-                Campagnes
-              </a>
-              <a href="#" className="block px-4 py-2 text-sm text-analytics-gray-600 hover:bg-analytics-gray-100 rounded-md">
-                Canaux
-              </a>
-              <a href="#" className="block px-4 py-2 text-sm text-analytics-gray-600 hover:bg-analytics-gray-100 rounded-md">
-                Conversions
-              </a>
-            </div>
-          )}
-          
-          <a href="#" className={getItemClass("")}>
-            <Users className={getItemIconClass()} />
-            {isOpen && <span className="ml-3">Audience</span>}
-          </a>
-        </nav>
-        
-        {/* Footer menu */}
-        <div className="p-4 border-t border-analytics-gray-200 space-y-1">
-          <a href="#" className={getItemClass("")}>
-            <Settings className={getItemIconClass()} />
-            {isOpen && <span className="ml-3">Paramètres</span>}
-          </a>
-          
-          <a href="#" className={getItemClass("")}>
-            <HelpCircle className={getItemIconClass()} />
-            {isOpen && <span className="ml-3">Aide</span>}
-          </a>
+      </div>
 
-          <button 
-            onClick={signOut}
-            className={cn(
-              "w-full flex items-center px-4 py-3 text-sm font-medium rounded-md text-red-600 hover:bg-red-50 transition-colors",
-              !isOpen && "justify-center px-0"
-            )}
+      <nav className="flex-1 px-2 py-4">
+        {sidebarItems.map((item) => (
+          <Link
+            to={item.path}
+            key={item.path}
+            className={`flex items-center px-4 py-2 text-gray-600 rounded-md hover:bg-gray-100 hover:text-gray-900 ${location.pathname === item.path ? 'bg-gray-100 text-gray-900 font-medium' : ''}`}
           >
-            <LogOut className={cn("h-5 w-5", !isOpen && "mx-auto")} />
-            {isOpen && <span className="ml-3">Déconnexion</span>}
-          </button>
-        </div>
-      </aside>
-    </>
+            {item.icon}
+            <span>{item.label}</span>
+          </Link>
+        ))}
+      </nav>
+
+      <Separator />
+
+      <div className="p-4">
+        <div className="text-sm text-gray-500">Connecté en tant que</div>
+        <div className="font-medium text-gray-700">{user?.email}</div>
+        <Button variant="ghost" className="mt-2 w-full justify-start" onClick={signOut}>
+          <LogOut className="h-4 w-4 mr-2" />
+          Déconnexion
+        </Button>
+      </div>
+    </aside>
   );
 };
 

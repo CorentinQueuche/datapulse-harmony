@@ -10,6 +10,7 @@ import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
 import { useAuth } from '@/hooks/useAuth';
 import CreateReportModal from '@/components/analytics/CreateReportModal';
+import { AnalyticsReportWithSource } from '@/types/supabase-extensions';
 
 const AnalyticsReports = () => {
   const { user } = useAuth();
@@ -26,7 +27,7 @@ const AnalyticsReports = () => {
         .order('created_at', { ascending: false });
       
       if (error) throw new Error(error.message);
-      return data;
+      return data as AnalyticsReportWithSource[];
     },
     enabled: !!user?.id,
   });

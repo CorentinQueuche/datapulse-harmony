@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { AnalyticsReport } from '@/types/supabase-extensions';
 
 interface AnalyticsDataOptions {
   sourceId: string | null;
@@ -23,7 +24,7 @@ export const useAnalyticsData = ({
   filters
 }: AnalyticsDataOptions) => {
   const [token, setToken] = useState<string | null>(null);
-  const [report, setReport] = useState<any>(null);
+  const [report, setReport] = useState<AnalyticsReport | null>(null);
 
   // Récupérer le token d'authentification
   useEffect(() => {
@@ -47,12 +48,14 @@ export const useAnalyticsData = ({
         .single();
       
       if (error) throw new Error(error.message);
-      return data;
+      return data as AnalyticsReport;
     },
     enabled: !!reportId && !!token,
-    onSuccess: (data) => {
-      if (data) {
-        setReport(data);
+    meta: {
+      onSuccess: (data: AnalyticsReport | null) => {
+        if (data) {
+          setReport(data);
+        }
       }
     }
   });

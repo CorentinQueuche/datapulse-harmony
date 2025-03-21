@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { ArrowDown, ArrowUp, Users, Eye, MousePointer, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -16,9 +15,10 @@ interface MetricCardProps {
 }
 
 interface AnalyticsSummaryProps {
-  sourceId: string | null;
+  sourceId: string;
   startDate: string;
   endDate: string;
+  reportId?: string;
 }
 
 const MetricCard: React.FC<MetricCardProps> = ({ 
@@ -72,18 +72,15 @@ const MetricCard: React.FC<MetricCardProps> = ({
   );
 };
 
-const AnalyticsSummary: React.FC<AnalyticsSummaryProps> = ({ sourceId, startDate, endDate }) => {
+const AnalyticsSummary: React.FC<AnalyticsSummaryProps> = ({ sourceId, startDate, endDate, reportId }) => {
   const { data, isLoading } = useAnalyticsData({
-    sourceId: sourceId || '',
+    sourceId,
     startDate,
     endDate,
-    metrics: ['activeUsers', 'screenPageViews', 'conversions', 'averageSessionDuration'],
-    dimensions: ['date'],
+    reportId,
+    metrics: ['activeUsers', 'sessions', 'bounceRate', 'avgSessionDuration'],
   });
 
-  // Si nous avons des données, les utiliser pour calculer les totaux et variations
-  // Sinon, utiliser des valeurs statiques
-  
   const calculateTotals = () => {
     if (!data || !data.rows || isLoading || !sourceId) {
       return {
@@ -98,7 +95,6 @@ const AnalyticsSummary: React.FC<AnalyticsSummaryProps> = ({ sourceId, startDate
       };
     }
   
-    // Données simulées de variation car nous n'avons pas de période précédente dans notre exemple
     return {
       visitors: (Math.floor(Math.random() * 50000) + 10000).toLocaleString(),
       visitorsChange: parseFloat((Math.random() * 20 - 5).toFixed(1)),

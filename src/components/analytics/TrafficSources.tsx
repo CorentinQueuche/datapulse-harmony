@@ -1,13 +1,13 @@
-
 import React from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { RefreshCw, AlertCircle } from 'lucide-react';
 import { useAnalyticsData } from '@/hooks/useAnalyticsData';
 
 interface TrafficSourcesProps {
-  sourceId: string | null;
+  sourceId: string;
   startDate: string;
   endDate: string;
+  reportId?: string;
 }
 
 // Sample data
@@ -21,13 +21,14 @@ const sampleData = [
 
 const COLORS = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444'];
 
-const TrafficSources: React.FC<TrafficSourcesProps> = ({ sourceId, startDate, endDate }) => {
+const TrafficSources: React.FC<TrafficSourcesProps> = ({ sourceId, startDate, endDate, reportId }) => {
   const { data, isLoading, error } = useAnalyticsData({
-    sourceId: sourceId || '',
+    sourceId,
     startDate,
     endDate,
-    metrics: ['activeUsers'],
-    dimensions: ['sessionSource'],
+    reportId,
+    metrics: ['sessions', 'activeUsers'],
+    dimensions: ['channelGrouping'],
   });
 
   // Transformer les données pour le graphique
