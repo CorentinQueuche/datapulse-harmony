@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import AnalyticsSources from "./pages/AnalyticsSources";
+import AnalyticsReports from "./pages/AnalyticsReports";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,11 @@ const App = () => (
             <Route path="/analytics-sources" element={
               <ProtectedRoute>
                 <AnalyticsSources />
+              </ProtectedRoute>
+            } />
+            <Route path="/analytics-reports" element={
+              <ProtectedRoute>
+                <AnalyticsReports />
               </ProtectedRoute>
             } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

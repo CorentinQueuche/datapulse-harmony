@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format, subDays } from 'date-fns';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import Header from '@/components/layout/Header';
@@ -13,9 +14,13 @@ import TrafficSources from '@/components/analytics/TrafficSources';
 import { Calendar, ChevronDown, Filter, RefreshCw, Database, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
+import { toast } from '@/hooks/use-toast';
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const reportId = searchParams.get('report');
   const [websiteFilter, setWebsiteFilter] = useState('all');
   const [showWebsiteFilter, setShowWebsiteFilter] = useState(false);
   const [dateRange, setDateRange] = useState('30d');
@@ -32,6 +37,40 @@ const Dashboard = () => {
     '90d': format(subDays(new Date(), 90), 'yyyy-MM-dd'),
   };
   const startDate = startDates[dateRange as keyof typeof startDates] || startDates['30d'];
+  
+  // Récupérer le rapport si reportId est fourni
+  const { data: report, isLoading: loadingReport } = useQuery({
+    queryKey: ['analyticsReport', reportId],
+    queryFn: async () => {
+      if (!reportId) return null;
+      
+      const { data, error } = await supabase
+        .from('analytics_reports')
+        .select('*, analytics_sources(name)')
+        .eq('id', reportId)
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!reportId && !!user?.id,
+    onSuccess: (data) => {
+      if (data) {
+        setSelectedSourceId(data.source_id);
+        toast({
+          title: "Rapport chargé",
+          description: `Le rapport "${data.name}" a été chargé avec succès.`,
+        });
+      }
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger le rapport demandé.",
+        variant: "destructive",
+      });
+    }
+  });
   
   // Récupérer les sources d'analytics
   const { data: sources, isLoading: loadingSources } = useQuery({
@@ -50,10 +89,10 @@ const Dashboard = () => {
   
   // Sélectionner automatiquement la première source si aucune n'est sélectionnée
   useEffect(() => {
-    if (sources && sources.length > 0 && !selectedSourceId) {
+    if (sources && sources.length > 0 && !selectedSourceId && !reportId) {
       setSelectedSourceId(sources[0].id);
     }
-  }, [sources, selectedSourceId]);
+  }, [sources, selectedSourceId, reportId]);
   
   const dateRanges = [
     { label: 'Aujourd\'hui', value: 'today' },
@@ -63,27 +102,31 @@ const Dashboard = () => {
     { label: '90 derniers jours', value: '90d' },
   ];
 
+  const isLoading = loadingSources || loadingReport;
+
   return (
     <div className="flex h-screen bg-analytics-gray-50">
       <Sidebar />
       
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header 
-          title="Dashboard" 
-          subtitle="Vue d'ensemble de vos données d'analytics"
+          title={report ? `Rapport: ${report.name}` : "Dashboard"} 
+          subtitle={report ? `${report.analytics_sources?.name || 'Source inconnue'} • ${new Date(report.start_date).toLocaleDateString()} - ${new Date(report.end_date).toLocaleDateString()}` : "Vue d'ensemble de vos données d'analytics"}
         />
         
         <main className="flex-1 overflow-y-auto p-6">
           <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div className="flex items-center">
-              <h2 className="text-2xl font-semibold text-analytics-gray-900">Vue d'ensemble</h2>
+              <h2 className="text-2xl font-semibold text-analytics-gray-900">
+                {report ? report.name : "Vue d'ensemble"}
+              </h2>
               <div className="ml-3 px-2 py-1 bg-analytics-blue bg-opacity-10 rounded-md text-xs font-medium text-analytics-blue">
                 Live
               </div>
             </div>
             
             <div className="flex items-center gap-3">
-              {sources && sources.length > 0 ? (
+              {!report && sources && sources.length > 0 ? (
                 <>
                   <div className="relative">
                     <button 
@@ -145,11 +188,24 @@ const Dashboard = () => {
                     )}
                   </div>
                 </>
+              ) : report ? (
+                <div className="flex gap-2">
+                  <Link to="/analytics-reports">
+                    <Button variant="outline" size="sm">
+                      Tous les rapports
+                    </Button>
+                  </Link>
+                  <Link to="/dashboard">
+                    <Button variant="outline" size="sm">
+                      Dashboard standard
+                    </Button>
+                  </Link>
+                </div>
               ) : null}
             </div>
           </div>
           
-          {loadingSources ? (
+          {isLoading ? (
             <div className="flex justify-center items-center h-64">
               <RefreshCw className="animate-spin h-8 w-8 text-analytics-gray-400" />
             </div>
@@ -174,33 +230,40 @@ const Dashboard = () => {
             <div className="space-y-6">
               <AnalyticsSummary 
                 sourceId={selectedSourceId}
-                startDate={startDate}
-                endDate={endDate}
+                startDate={report ? report.start_date : startDate}
+                endDate={report ? report.end_date : endDate}
+                reportId={reportId || undefined}
               />
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <VisitorsChart 
                   sourceId={selectedSourceId}
-                  startDate={startDate}
-                  endDate={endDate}
+                  startDate={report ? report.start_date : startDate}
+                  endDate={report ? report.end_date : endDate}
                   period={dateRange}
+                  reportId={reportId || undefined}
                 />
                 <PerformanceMetrics 
                   sourceId={selectedSourceId}
-                  startDate={startDate}
-                  endDate={endDate}
+                  startDate={report ? report.start_date : startDate}
+                  endDate={report ? report.end_date : endDate}
+                  reportId={reportId || undefined}
                 />
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <TrafficSources 
                   sourceId={selectedSourceId}
-                  startDate={startDate}
-                  endDate={endDate}
+                  startDate={report ? report.start_date : startDate}
+                  endDate={report ? report.end_date : endDate}
+                  reportId={reportId || undefined}
                 />
                 
                 <div className="glass-card p-5 col-span-1 lg:col-span-2 animate-fade-in">
-                  <h3 className="text-lg font-semibold text-analytics-gray-900 mb-4">Pages les plus visitées</h3>
+                  <h3 className="text-lg font-semibold text-analytics-gray-900 mb-4">
+                    Pages les plus visitées
+                    {report && report.dimensions.includes('page') && " (Rapport)"}
+                  </h3>
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>

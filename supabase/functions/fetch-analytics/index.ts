@@ -13,6 +13,7 @@ interface GoogleAnalyticsRequest {
   endDate: string;
   metrics?: string[];
   dimensions?: string[];
+  filters?: Record<string, any>;
 }
 
 serve(async (req) => {
@@ -49,7 +50,7 @@ serve(async (req) => {
     }
 
     // Récupérer les paramètres de la requête
-    const { sourceId, startDate, endDate, metrics = ['activeUsers'], dimensions = ['date'] }: GoogleAnalyticsRequest = await req.json();
+    const { sourceId, startDate, endDate, metrics = ['activeUsers'], dimensions = ['date'], filters = {} }: GoogleAnalyticsRequest = await req.json();
 
     // Récupérer la source d'analytics
     const { data: sourceData, error: sourceError } = await supabase
@@ -103,23 +104,19 @@ serve(async (req) => {
     // Simulons une réponse d'analytics pour l'exemple
     const propertyId = sourceData.property_id;
     console.log(`Récupération des données pour la propriété GA4 ${propertyId}...`);
+    console.log(`Filtres appliqués:`, JSON.stringify(filters));
 
-    // Génération de données fictives pour l'exemple
-    const analyticsData = {
-      dimensionHeaders: [
-        { name: 'date' }
-      ],
-      metricHeaders: [
-        { name: 'activeUsers', type: 'INTEGER' }
-      ],
-      rows: generateSampleData(startDate, endDate)
-    };
+    // Générer les données en fonction des dimensions et filtres demandés
+    const analyticsData = generateSampleData(startDate, endDate, metrics, dimensions, filters);
 
     // Mettre à jour la date de dernière synchronisation
     await supabase
       .from('analytics_sources')
       .update({ last_synced: new Date().toISOString() })
       .eq('id', sourceId);
+
+    // Enregistrer cette requête dans l'historique des rapports si ce n'est pas déjà un rapport enregistré
+    // Cette fonctionnalité pourrait être ajoutée ultérieurement
 
     return new Response(
       JSON.stringify(analyticsData),
@@ -134,26 +131,139 @@ serve(async (req) => {
   }
 });
 
-// Fonction pour générer des données d'exemple
-function generateSampleData(startDate: string, endDate: string) {
+// Fonction améliorée pour générer des données d'exemple
+function generateSampleData(
+  startDate: string, 
+  endDate: string, 
+  metrics: string[] = ['activeUsers'], 
+  dimensions: string[] = ['date'],
+  filters: Record<string, any> = {}
+) {
   const start = new Date(startDate);
   const end = new Date(endDate);
   const days = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
   
-  const rows = [];
-  const currentDate = new Date(start);
+  // Créer les en-têtes de dimension
+  const dimensionHeaders = dimensions.map(dim => ({ name: dim }));
   
-  for (let i = 0; i < days; i++) {
-    const dateStr = currentDate.toISOString().split('T')[0];
-    const randomUsers = Math.floor(Math.random() * 1000) + 100;
+  // Créer les en-têtes de métrique
+  const metricHeaders = metrics.map(metric => {
+    let type = 'INTEGER';
+    if (['bounceRate', 'conversionRate'].includes(metric)) {
+      type = 'FLOAT';
+    } else if (['avgSessionDuration'].includes(metric)) {
+      type = 'TIME';
+    }
+    return { name: metric, type };
+  });
+  
+  // Générer les données en fonction des dimensions
+  const rows = [];
+  
+  // Si la dimension est "date", générer des données quotidiennes
+  if (dimensions.includes('date')) {
+    const currentDate = new Date(start);
     
-    rows.push({
-      dimensionValues: [{ value: dateStr }],
-      metricValues: [{ value: randomUsers.toString() }]
+    for (let i = 0; i < days; i++) {
+      const dateStr = currentDate.toISOString().split('T')[0];
+      
+      // Générer des valeurs pour toutes les métriques demandées
+      const metricValues = generateMetricValues(metrics, filters);
+      
+      // Créer les valeurs de dimension
+      const dimensionValues = dimensions.map(dim => {
+        if (dim === 'date') return { value: dateStr };
+        if (dim === 'week') return { value: `Week ${Math.ceil((i + 1) / 7)}` };
+        if (dim === 'month') return { value: currentDate.toLocaleString('default', { month: 'long' }) };
+        return { value: getDimensionValue(dim) };
+      });
+      
+      rows.push({
+        dimensionValues,
+        metricValues
+      });
+      
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+  } 
+  // Si la dimension est "source" ou autre dimension catégorielle
+  else if (dimensions.some(d => ['source', 'channel', 'country', 'device', 'browser'].includes(d))) {
+    const categories = getCategoriesForDimension(dimensions[0]);
+    
+    categories.forEach(category => {
+      // Générer des valeurs pour toutes les métriques demandées
+      const metricValues = generateMetricValues(metrics, filters);
+      
+      // Créer les valeurs de dimension
+      const dimensionValues = dimensions.map(dim => {
+        if (dim === dimensions[0]) return { value: category };
+        return { value: getDimensionValue(dim) };
+      });
+      
+      rows.push({
+        dimensionValues,
+        metricValues
+      });
     });
-    
-    currentDate.setDate(currentDate.getDate() + 1);
   }
   
-  return rows;
+  return {
+    dimensionHeaders,
+    metricHeaders,
+    rows
+  };
+}
+
+// Générer des valeurs pour les métriques demandées
+function generateMetricValues(metrics: string[], filters: Record<string, any>) {
+  return metrics.map(metric => {
+    // Appliquer des facteurs de variation basés sur les filtres
+    let factor = 1;
+    if (filters.country === 'France') factor = 1.2;
+    if (filters.device === 'mobile') factor = 0.8;
+    
+    if (metric === 'activeUsers') {
+      return { value: Math.floor((Math.random() * 1000 + 100) * factor).toString() };
+    } else if (metric === 'newUsers') {
+      return { value: Math.floor((Math.random() * 500 + 50) * factor).toString() };
+    } else if (metric === 'sessions') {
+      return { value: Math.floor((Math.random() * 1500 + 200) * factor).toString() };
+    } else if (metric === 'pageviews') {
+      return { value: Math.floor((Math.random() * 3000 + 500) * factor).toString() };
+    } else if (metric === 'bounceRate') {
+      return { value: (Math.random() * 70 + 10).toFixed(2) };
+    } else if (metric === 'avgSessionDuration') {
+      return { value: Math.floor(Math.random() * 300 + 60).toString() };
+    } else if (metric === 'pagesPerSession') {
+      return { value: (Math.random() * 5 + 1).toFixed(2) };
+    } else if (metric === 'conversionRate') {
+      return { value: (Math.random() * 10 + 1).toFixed(2) };
+    }
+    return { value: '0' };
+  });
+}
+
+// Obtenir des catégories pour une dimension donnée
+function getCategoriesForDimension(dimension: string): string[] {
+  switch (dimension) {
+    case 'source':
+      return ['Google', 'Direct', 'Facebook', 'Twitter', 'Email', 'Referral'];
+    case 'channel':
+      return ['Organic Search', 'Direct', 'Social', 'Email', 'Referral', 'Paid Search'];
+    case 'country':
+      return ['France', 'États-Unis', 'Royaume-Uni', 'Allemagne', 'Canada', 'Espagne'];
+    case 'device':
+      return ['Desktop', 'Mobile', 'Tablet'];
+    case 'browser':
+      return ['Chrome', 'Safari', 'Firefox', 'Edge', 'Opera'];
+    default:
+      return ['Catégorie 1', 'Catégorie 2', 'Catégorie 3', 'Catégorie 4'];
+  }
+}
+
+// Obtenir une valeur pour une dimension donnée
+function getDimensionValue(dimension: string): string {
+  const categories = getCategoriesForDimension(dimension);
+  const randomIndex = Math.floor(Math.random() * categories.length);
+  return categories[randomIndex];
 }
