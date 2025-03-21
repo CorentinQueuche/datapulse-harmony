@@ -43,14 +43,6 @@ site_url = "http://localhost:3000"
 additional_redirect_urls = ["https://localhost:3000"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
-# Send Emails through a custom SMTP server rather than the built-in email testing server.
-# Will default to built-in email testing server if not configured.
-smtp_admin_email = "admin@example.com"
-smtp_host = "smtp.example.com"
-smtp_port = 587
-smtp_user = "example"
-smtp_pass = "example"
-smtps = true
 # Allow/disallow new user signups to your project.
 enable_signup = true
 
@@ -76,16 +68,7 @@ redirect_uri = ""
 # or any other third-party OIDC providers.
 url = ""
 
+# Optional: Enable analytics capabilities. Supabase Analytics is still in beta.
 [analytics]
 enabled = false
 port = 54327
-vector_port = 54328
-# Setup BigQuery for analytics.
-# The GCP project ID where the BigQuery dataset is.
-gcp_project_id = ""
-# The ID of the BigQuery dataset.
-bq_dataset_id = ""
-# The URL of the Vector instance to use as the data warehouse for analytics.
-# Warning: only use 'vector' if you have already set up a self-host vector instance.
-# Our Analytics server assumes that Vector accepts the PostgreSQL wire protocol.
-vector_url = ""
