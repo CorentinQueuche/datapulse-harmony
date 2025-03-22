@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -91,7 +92,7 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+      <Header title="Dashboard" />
       <div className="flex">
         <Sidebar isMenuOpen={false} toggleMenu={() => {}} />
         <main className="flex-1 p-6">
