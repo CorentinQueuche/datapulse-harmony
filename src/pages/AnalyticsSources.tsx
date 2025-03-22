@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -59,6 +58,11 @@ const AnalyticsSources = () => {
     if (confirm("Êtes-vous sûr de vouloir supprimer cette source ?")) {
       deleteMutation.mutate(sourceId);
     }
+  };
+
+  const handleSourceAdded = () => {
+    queryClient.invalidateQueries({ queryKey: ['analyticsSources'] });
+    setIsModalOpen(false);
   };
 
   return (
@@ -142,7 +146,11 @@ const AnalyticsSources = () => {
             )}
           </div>
           
-          <AddAnalyticsSourceModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+          <AddAnalyticsSourceModal 
+            isOpen={isModalOpen} 
+            onClose={() => setIsModalOpen(false)} 
+            onSuccess={handleSourceAdded}
+          />
         </main>
       </div>
     </div>

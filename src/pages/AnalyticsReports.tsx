@@ -37,7 +37,7 @@ const AnalyticsReports = () => {
   const deleteMutation = useMutation({
     mutationFn: async (reportId: string) => {
       const { error } = await supabase.rpc('delete_analytics_report', {
-        p_report_id: reportId
+        report_id: reportId  // Changed from p_report_id to report_id
       });
       
       if (error) throw new Error(error.message);
