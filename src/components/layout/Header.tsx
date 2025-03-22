@@ -3,17 +3,23 @@ import React from 'react';
 import { BellIcon, Settings, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-interface HeaderProps {
+export interface HeaderProps {
   title?: string;
+  subtitle?: string;
 }
 
-const Header: React.FC<HeaderProps> = ({ title }) => {
+const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
   return (
     <header className="sticky top-0 z-40 border-b bg-white">
       <div className="container flex h-16 items-center justify-between py-4">
         <div className="flex items-center gap-2 md:gap-4">
           {title && (
-            <h1 className="text-xl font-bold md:text-2xl">{title}</h1>
+            <div>
+              <h1 className="text-xl font-bold md:text-2xl">{title}</h1>
+              {subtitle && (
+                <p className="text-sm text-muted-foreground">{subtitle}</p>
+              )}
+            </div>
           )}
         </div>
         <div className="flex items-center gap-2">

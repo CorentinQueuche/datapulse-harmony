@@ -82,7 +82,7 @@ const availableDimensions = [
 ];
 
 const CreateReportModal: React.FC<CreateReportModalProps> = ({ isOpen, onClose }) => {
-  const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
+  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(['activeUsers']);
   const [selectedDimensions, setSelectedDimensions] = useState<string[]>(['date']);
   const queryClient = useQueryClient();
 
@@ -116,7 +116,14 @@ const CreateReportModal: React.FC<CreateReportModalProps> = ({ isOpen, onClose }
   // Create report mutation
   const createMutation = useMutation({
     mutationFn: async (values: FormValues) => {
+      // Get the current user's ID
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      
+      if (!userId) throw new Error("User not authenticated");
+      
       const { error } = await supabase.rpc('create_analytics_report', {
+        p_user_id: userId,
         p_name: values.name,
         p_description: values.description || '',
         p_source_id: values.source_id,

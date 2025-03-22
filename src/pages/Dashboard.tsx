@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, subDays } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import Header from '@/components/layout/Header';
 import Sidebar from '@/components/layout/Sidebar';
 import VisitorsChart from '@/components/analytics/VisitorsChart';
@@ -13,8 +12,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/components/ui/use-toast';
-import { AnalyticsReportWithSource } from '@/types/supabase-extensions';
 import { LineChart } from 'lucide-react';
+import { AnalyticsReportWithSource } from '@/types/supabase-extensions';
 
 const Dashboard = () => {
   const { toast } = useToast();
@@ -27,13 +26,11 @@ const Dashboard = () => {
     queryKey: ['featuredReport'],
     queryFn: async () => {
       // First get the reports
-      const { data, error } = await supabase
-        .rpc('get_analytics_reports_with_sources');
-      
+      const { data, error } = await supabase.rpc('get_analytics_reports_with_sources');
       if (error) throw new Error(error.message);
       
       // Find the most recent report (assuming they're returned in descending order)
-      const reports = data as AnalyticsReportWithSource[];
+      const reports = data as unknown as AnalyticsReportWithSource[];
       return reports && reports.length > 0 ? reports[0] : null;
     },
     meta: {
@@ -62,7 +59,7 @@ const Dashboard = () => {
     const now = new Date();
     let start;
     
-    switch (period) {
+    switch(period) {
       case '7d':
         start = subDays(now, 7);
         break;
@@ -87,12 +84,12 @@ const Dashboard = () => {
   const defaultSource = sources && sources.length > 0 ? sources[0] : null;
   
   // Use featured report if available, otherwise use the first source
-  const sourceId = featuredReport?.source_id || (defaultSource?.id || null);
+  const sourceId = featuredReport?.source_id || defaultSource?.id || null;
   const reportId = featuredReport?.id;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header title="Dashboard" />
+      <Header />
       <div className="flex">
         <Sidebar isMenuOpen={false} toggleMenu={() => {}} />
         <main className="flex-1 p-6">
@@ -100,12 +97,10 @@ const Dashboard = () => {
             <div className="flex flex-col gap-6">
               <div className="flex flex-col gap-2">
                 <h1 className="text-3xl font-bold tracking-tight">Tableau de bord</h1>
-                <p className="text-muted-foreground">
-                  Visualisez les performances de votre site web
-                </p>
+                <p className="text-muted-foreground">Visualisez les performances de votre site web</p>
               </div>
 
-              {isReportLoading || isSourcesLoading ? (
+              {(isReportLoading || isSourcesLoading) ? (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                   {[...Array(4)].map((_, i) => (
                     <Card key={i}>
@@ -137,7 +132,7 @@ const Dashboard = () => {
                       </div>
                     </div>
                   )}
-
+                  
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     <MetricCard
                       title="Visiteurs actifs"
@@ -192,15 +187,11 @@ const Dashboard = () => {
                       <Card>
                         <CardHeader>
                           <CardTitle>Engagement</CardTitle>
-                          <CardDescription>
-                            Mesures d'engagement des utilisateurs sur votre site
-                          </CardDescription>
+                          <CardDescription>Mesures d'engagement des utilisateurs sur votre site</CardDescription>
                         </CardHeader>
                         <CardContent className="pl-2">
                           <div className="flex h-[300px] items-center justify-center">
-                            <p className="text-sm text-muted-foreground">
-                              Les graphiques d'engagement seront disponibles prochainement
-                            </p>
+                            <p className="text-sm text-muted-foreground">Les graphiques d'engagement seront disponibles prochainement</p>
                           </div>
                         </CardContent>
                       </Card>
@@ -209,15 +200,11 @@ const Dashboard = () => {
                       <Card>
                         <CardHeader>
                           <CardTitle>Acquisition</CardTitle>
-                          <CardDescription>
-                            Comment les utilisateurs découvrent votre site
-                          </CardDescription>
+                          <CardDescription>Comment les utilisateurs découvrent votre site</CardDescription>
                         </CardHeader>
                         <CardContent className="pl-2">
                           <div className="flex h-[300px] items-center justify-center">
-                            <p className="text-sm text-muted-foreground">
-                              Les graphiques d'acquisition seront disponibles prochainement
-                            </p>
+                            <p className="text-sm text-muted-foreground">Les graphiques d'acquisition seront disponibles prochainement</p>
                           </div>
                         </CardContent>
                       </Card>
